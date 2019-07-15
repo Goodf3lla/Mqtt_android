@@ -1,6 +1,7 @@
 package com.argos.android.opencv.activity
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.graphics.Bitmap
 import android.os.Bundle
 import android.os.Handler
@@ -19,6 +20,7 @@ import com.argos.android.opencv.interfaces.ScenarioCallback
 import com.argos.android.opencv.lanekeeping.LaneKeeper
 import com.argos.android.opencv.model.Feature
 import com.argos.android.opencv.model.FpsCounter
+import com.argos.android.opencv.mqtt.MqttClientInstance
 import com.argos.android.opencv.network.APIController
 import com.argos.android.opencv.network.ServiceVolley
 import com.argos.android.opencv.scenario.ScenarioManager
@@ -59,8 +61,11 @@ class CameraActivity : AppCompatActivity(), CameraBridgeViewBase.CvCameraViewLis
 
     }
 
+    private var usqMqtt = false
+
 
     private var decorView: View? = null
+    override var mQTTClient: MqttClientInstance = MqttClientInstance(this)
 
     private var cameraView: CameraBridgeViewBase? = null
 
@@ -106,10 +111,16 @@ class CameraActivity : AppCompatActivity(), CameraBridgeViewBase.CvCameraViewLis
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_camera)
-
+        mQTTClient.connect()
+        scenarioManager.setMQTTCLient(mQTTClient)
+        laneKeeper.setMQTTCLient(mQTTClient)
         initExtras()
         initView()
         initListener()
+    }
+
+    override fun getMqttEnabled(): Boolean {
+        return usqMqtt
     }
 
 
@@ -123,6 +134,7 @@ class CameraActivity : AppCompatActivity(), CameraBridgeViewBase.CvCameraViewLis
             Feature.LANE_KEEPING -> {
                 lane_keeping_status.visibility = View.VISIBLE
                 showStartDialog()
+                showMQTTDialog()
 
                 lane_keeping_change_mode.setOnClickListener {
                     laneKeeper.toggleAutonomous()
@@ -177,7 +189,7 @@ class CameraActivity : AppCompatActivity(), CameraBridgeViewBase.CvCameraViewLis
     }
 
     override fun onDestroy() {
-
+        mQTTClient.disconnect()
         if (cameraView != null)
             cameraView!!.disableView()
         super.onDestroy()
@@ -195,7 +207,7 @@ class CameraActivity : AppCompatActivity(), CameraBridgeViewBase.CvCameraViewLis
             OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_2_0, this, loader)
         }
 
-        mCameraFrameManager = CameraFrameManager(this, mFeatureString, dnnHelper)
+        mCameraFrameManager = CameraFrameManager(this, mFeatureString, dnnHelper, mQTTClient)
         mCameraFrameManager.start()
     }
 
@@ -320,9 +332,9 @@ class CameraActivity : AppCompatActivity(), CameraBridgeViewBase.CvCameraViewLis
             else
                 txtDistance.text = "${distance}m"
         }
-
-        checkOverTaking(distance)
-
+        if (!usqMqtt) {
+            checkOverTaking(distance)
+        }
     }
 
     private fun checkOverTaking(distance: Double) {
@@ -421,6 +433,18 @@ class CameraActivity : AppCompatActivity(), CameraBridgeViewBase.CvCameraViewLis
         runOnUiThread {
             lane_keeping_tv_speed.text = newVal
         }
+    }
+
+    private fun showMQTTDialog() {
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("Enable Mqtt?")
+        // Set up the buttons
+        builder.setPositiveButton("YES", { dialog, which -> this.usqMqtt = true })
+
+        builder.setNegativeButton("No", { dialog, which -> this.usqMqtt = false })
+        builder.show()
+
+
     }
 
     private fun showStartDialog() {

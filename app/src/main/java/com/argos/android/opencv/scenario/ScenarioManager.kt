@@ -5,6 +5,7 @@ import android.util.Log
 import com.android.volley.Request
 import com.argos.android.opencv.activity.CameraActivity
 import com.argos.android.opencv.interfaces.ScenarioCallback
+import com.argos.android.opencv.mqtt.MqttClientInstance
 import com.argos.android.opencv.network.APIController
 import com.argos.android.opencv.network.ServiceVolley
 import org.json.JSONObject
@@ -34,6 +35,7 @@ class ScenarioManager(private val scenarioCallback: ScenarioCallback) {
     private val speedMeasurements = mutableListOf<Double>()
     private var isMeasuringSpeed = true
     private var running = false
+    private var client: MqttClientInstance? = null
 
 
     private var sensorRearLeft by observable(-1.0) { _, old, new ->
@@ -141,6 +143,19 @@ class ScenarioManager(private val scenarioCallback: ScenarioCallback) {
 
     private val exec = Executors.newSingleThreadExecutor()
 
+    fun setMQTTCLient(mqttClientInstance: MqttClientInstance) {
+        Log.d("MQTTInstance", "the instance is set")
+        client = mqttClientInstance;
+    }
+
+    fun getMQTTClient(): MqttClientInstance? {
+        if (client === null) {
+            Log.e("MQTTInstance", "the instance was not initiated yet or destroyed")
+            client = scenarioCallback.mQTTClient
+        }
+        return client
+    }
+
     fun startACC() {
         running = true
         scenarioCallback.updateACC()
@@ -204,19 +219,25 @@ class ScenarioManager(private val scenarioCallback: ScenarioCallback) {
     }
 
     private fun makeRequest(path: String, parameter: Pair<String, Any>?, method: Int) {
+        Log.d("mqtt", "making request $path")
+        if (scenarioCallback.getMqttEnabled()) {
+            var message = "null"
+            if (parameter?.second !== null) {
+                message = parameter.second.toString()
+            }
+            getMQTTClient()?.publishMessage(message, 1, path)
+        } else {
+            val json = JSONObject()
 
-        val json = JSONObject()
+            if (parameter != null) {
+                json.put(parameter.first, parameter.second)
+            }
 
-        if (parameter != null) {
-            json.put(parameter.first, parameter.second)
+
+            apiController.request(CameraActivity.mServerString + path, json, { response ->
+                handleResponse(path, response, parameter?.second)
+            }, method)
         }
-
-
-        apiController.request(CameraActivity.mServerString + path, json, { response ->
-            handleResponse(path, response, parameter?.second)
-        }, method)
-
-
     }
 
     private fun handleResponse(path: String, response: JSONObject?, parameter: Any?) {

@@ -7,6 +7,7 @@ import com.argos.android.opencv.activity.CameraActivity.Companion.PARALLEL_RIGHT
 import com.argos.android.opencv.activity.CameraActivity.Companion.PARALLEL_RIGHT_X_START
 import com.argos.android.opencv.activity.CameraActivity.Companion.rightMidPoint
 import com.argos.android.opencv.camera.CameraFrameMangerCaller
+import com.argos.android.opencv.mqtt.MqttClientInstance
 import com.argos.android.opencv.network.APIController
 import com.argos.android.opencv.network.ServiceVolley
 import org.json.JSONObject
@@ -17,9 +18,10 @@ import kotlin.math.sign
 
 class LaneKeeper(val observer: CameraFrameMangerCaller) {
 
-    private var mServerString: String = "http://192.168.43.202:9080"
     private val service = ServiceVolley()
     private val apiController = APIController(service)
+    private var client: MqttClientInstance? = null
+
 
     val cropPoints = mutableListOf<Point>()
 
@@ -41,20 +43,44 @@ class LaneKeeper(val observer: CameraFrameMangerCaller) {
         cropPoints.add(Point(1280.0, 720.0))
     }
 
+    fun setMQTTCLient(mqttClientInstance: MqttClientInstance) {
+        Log.d("MQTTInstance", "the instance is set")
+        client = mqttClientInstance
+    }
+
+    fun getMQTTClient(): MqttClientInstance? {
+        if (client === null) {
+            Log.e("MQTTInstance", "the instance was not initiated yet or destroyed")
+            client = observer.mQTTClient
+        }
+        return client
+    }
+
+
     @Synchronized
     fun postRequest(path: String, parameter: Pair<String, Any>?) {
 
-        val json = JSONObject()
+        Log.d("mqtt", "making request $path")
+        if (observer.getMqttEnabled()) {
+            var message = "null"
+            if (parameter?.second !== null) {
+                message = parameter.second.toString()
+            }
+            getMQTTClient()?.publishMessage(message, 1, path)
+        } else {
 
-        if (parameter != null) {
-            json.put(parameter.first, parameter.second)
+            val json = JSONObject()
+
+            if (parameter != null) {
+                json.put(parameter.first, parameter.second)
+            }
+
+            Log.d(javaClass.simpleName, "$path request: ${System.currentTimeMillis()}")
+
+            apiController.request(CameraActivity.mServerString + path, json, { response ->
+                handleResponse(path, parameter?.second.toString())
+            }, Request.Method.POST)
         }
-
-        Log.d(javaClass.simpleName, "$path request: ${System.currentTimeMillis()}")
-
-        apiController.request(mServerString + path, json, { response ->
-            handleResponse(path, parameter?.second.toString())
-        }, Request.Method.POST)
 
     }
 
@@ -70,7 +96,6 @@ class LaneKeeper(val observer: CameraFrameMangerCaller) {
         }
     }
     // New Version
-
     fun initImageProcessing(frame: Mat): Mat {
 
         // Image processing
@@ -82,7 +107,6 @@ class LaneKeeper(val observer: CameraFrameMangerCaller) {
         //draw parallles
         drawParallels(frame)
         drawMidPointOfParallels(frame)
-
         return steerAndDrawMarker(contours, frame)
     }
 
@@ -182,7 +206,14 @@ class LaneKeeper(val observer: CameraFrameMangerCaller) {
 
         val sign = distRight.sign
         val steerDir = if (sign < 0) STEER_LEFT else STEER_RIGHT
-        doSteering(distRight, steerDir)
+        if (observer.getMqttEnabled()) {
+            val steeringDataString = "distance: $distRight; direction: $steerDir"
+
+            postRequest(STEERING_DATA, Pair("steer", steeringDataString))
+
+        } else {
+            doSteering(distRight, steerDir)
+        }
 
         return frame
     }
@@ -250,6 +281,7 @@ class LaneKeeper(val observer: CameraFrameMangerCaller) {
 
     companion object {
         private const val STEER = "/setSteer"
+        private const val STEERING_DATA = "/steeringData"
         private const val TOGGLE_AUTONOMOUS = "/toggleAutonomous"
     }
 

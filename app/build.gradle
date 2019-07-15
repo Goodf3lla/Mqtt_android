@@ -6,7 +6,6 @@ apply plugin: 'kotlin-kapt'
 
 android {
     compileSdkVersion 27
-    buildToolsVersion '27.0.3'
     defaultConfig {
         applicationId "com.argos.android.opencv"
         minSdkVersion 19
@@ -47,12 +46,17 @@ dependencies {
     testImplementation 'junit:junit:4.12'
     implementation project(':sdkopencv34')
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+    api 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.1.0'
+    api 'org.eclipse.paho:org.eclipse.paho.android.service:1.1.1'
 
 
-    compile 'com.android.volley:volley:1.1.0'
+    api 'com.android.volley:volley:1.1.0'
 
 }
 repositories {
     mavenCentral()
+    maven {
+        url "https://repo.eclipse.org/content/repositories/paho-snapshots/"
+    }
 
 }

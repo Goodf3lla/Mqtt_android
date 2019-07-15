@@ -3,22 +3,21 @@ package com.argos.android.opencv.camera
 import android.util.Log
 import com.argos.android.opencv.activity.CameraActivity
 import com.argos.android.opencv.driving.DnnHelper
-import com.argos.android.opencv.interfaces.ScenarioCallback
 import com.argos.android.opencv.lanekeeping.LaneKeeper
 import com.argos.android.opencv.lineDetection.LaneFinder
 import com.argos.android.opencv.model.Feature
-import com.argos.android.opencv.scenario.ScenarioManager
+import com.argos.android.opencv.mqtt.MqttClientInstance
 import org.opencv.core.*
-import org.opencv.engine.OpenCVEngineInterface
 import org.opencv.imgproc.Imgproc
 
-class CameraFrameManager(private val mCaller: CameraFrameMangerCaller, private val mFeature: String, private val mDnnHelper: DnnHelper) : Thread() {
+class CameraFrameManager(private val mCaller: CameraFrameMangerCaller, private val mFeature: String, private val mDnnHelper: DnnHelper, private val mqttClientInstance: MqttClientInstance) : Thread() {
     private var mLaneFinder = LaneFinder()
     private var mLaneKeeper = LaneKeeper(mCaller)
     private lateinit var mFrameInfo: Mat
     private lateinit var mDebugImage: Mat
     private var mDistance: Double = 0.0
     private var mRunning: Boolean = true
+    var mQTTClient: MqttClientInstance = mqttClientInstance
 
     private val mGreyWidth = (CameraActivity.SCREEN_WIDTH - CameraActivity.SCREEN_HEIGHT)/2
 

@@ -1,15 +1,17 @@
 package com.argos.android.opencv.camera
 
-import com.argos.android.opencv.lanekeeping.LaneKeeper
+import com.argos.android.opencv.mqtt.MqttClientInstance
 import org.opencv.core.Mat
 
 interface CameraFrameMangerCaller {
+    var mQTTClient: MqttClientInstance
     fun getCopyOfCurrentFrame(): Mat
     fun setDistance(distance: Double)
     // Lane Keeping
     fun setSteerText(text : String)
     fun toggleAutonomous()
     fun showChangeIPDialog()
+    fun getMqttEnabled(): Boolean
 }
 
 
